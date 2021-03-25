@@ -4,22 +4,33 @@
 import * as React from 'react'
 import {
   fetchPokemon,
+  getImageUrlForPokemon,
   PokemonInfoFallback,
   PokemonForm,
-  PokemonDataView,
+  // PokemonDataView,
   PokemonErrorBoundary,
 } from '../pokemon'
 import {createResource} from '../utils'
+
+const PokemonInfo = React.lazy(() =>
+  import('../lazy/pokemon-info-render-as-you-fetch'),
+)
 
 // ❗❗❗❗
 // 🦉 On this one, make sure that you UNCHECK the "Disable cache" checkbox
 // in your DevTools "Network Tab". We're relying on that cache for this
 // approach to work!
 // ❗❗❗❗
-
+function preloadImage(src) {
+  return new Promise(resolve => {
+    const img = document.createElement('img')
+    img.src = src
+    img.onload = () => resolve(src)
+  })
+}
 // we need to make a place to store the resources outside of render so
 // 🐨 create "cache" object here.
-
+const imgSrcResourceCache = {}
 // 🐨 create an Img component that renders a regular <img /> and accepts a src
 // prop and forwards on any remaining props.
 // 🐨 The first thing you do in this component is check whether your
@@ -29,18 +40,31 @@ import {createResource} from '../utils'
 // 💰 Here's what rendering the <img /> should look like:
 // <img src={imgSrcResource.read()} {...props} />
 
+/*function Img({src, alt, ...imgProps}) {
+  let imageSrcResource = imgSrcResourceCache[src]
+
+  if (!imageSrcResource) {
+    imageSrcResource = createResource(preloadImage(src))
+    imgSrcResourceCache[src] = imageSrcResource
+  }
+
+  return <img src={imageSrcResource.read()} alt={alt} {...imgProps} />
+}*/
+
+/*
 function PokemonInfo({pokemonResource}) {
-  const pokemon = pokemonResource.read()
+  const pokemon = pokemonResource.data.read()
   return (
     <div>
       <div className="pokemon-info__img-wrapper">
-        {/* 🐨 swap this img for your new Img component */}
-        <img src={pokemon.image} alt={pokemon.name} />
+        {/!* 🐨 swap this img for your new Img component *!/}
+        <img src={pokemonResource.image.read()} alt={pokemon.name} />
       </div>
       <PokemonDataView pokemon={pokemon} />
     </div>
   )
 }
+*/
 
 const SUSPENSE_CONFIG = {
   timeoutMs: 4000,
@@ -61,7 +85,18 @@ function getPokemonResource(name) {
 }
 
 function createPokemonResource(pokemonName) {
-  return createResource(fetchPokemon(pokemonName))
+  const pokemonImageUrl = getImageUrlForPokemon(pokemonName)
+  let imageSrcResource = imgSrcResourceCache[pokemonImageUrl]
+
+  if (!imageSrcResource) {
+    imageSrcResource = createResource(preloadImage(pokemonImageUrl))
+    imgSrcResourceCache[pokemonImageUrl] = imageSrcResource
+  }
+
+  return {
+    data: createResource(fetchPokemon(pokemonName)),
+    image: imageSrcResource,
+  }
 }
 
 function App() {
